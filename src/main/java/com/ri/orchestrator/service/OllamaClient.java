@@ -1,7 +1,8 @@
 package com.ri.orchestrator.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ri.orchestrator.dto.OllamaGenerateRequest;
-import com.ri.orchestrator.dto.OllamaGenerateResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,34 +18,56 @@ public class OllamaClient {
   private final RestTemplate restTemplate;
   private final String baseUrl;
   private final String model;
+  private final ObjectMapper objectMapper;
 
   public OllamaClient(RestTemplate restTemplate,
                       @Value("${ollama.base-url}") String baseUrl,
-                      @Value("${ollama.model}") String model) {
+                      @Value("${ollama.model}") String model,
+                      ObjectMapper objectMapper) {
     this.restTemplate = restTemplate;
     this.baseUrl = baseUrl;
     this.model = model;
+    this.objectMapper = objectMapper;
   }
 
   public String generate(String prompt) {
     OllamaGenerateRequest request = new OllamaGenerateRequest(model, prompt, false);
 
     try {
-      ResponseEntity<OllamaGenerateResponse> response = restTemplate.postForEntity(
-          baseUrl + "/api/generate", request, OllamaGenerateResponse.class);
+      ResponseEntity<String> response = restTemplate.postForEntity(
+          baseUrl + "/api/generate", request, String.class);
 
       if (!response.getStatusCode().is2xxSuccessful()) {
         log.error("Ollama returned non-2xx status: {}", response.getStatusCode());
         throw new IllegalStateException("Ollama returned non-2xx status");
       }
 
-      OllamaGenerateResponse body = response.getBody();
-      if (body == null || body.getResponse() == null || body.getResponse().isBlank()) {
-        log.error("Ollama response missing 'response' field");
-        throw new IllegalStateException("Ollama response missing 'response' field");
+      String body = response.getBody();
+      if (body == null || body.isBlank()) {
+        log.error("Ollama response body is empty");
+        throw new IllegalStateException("Ollama response body is empty");
       }
 
-      return body.getResponse();
+      String trimmed = body.trim();
+      if (trimmed.startsWith("{")) {
+        try {
+          JsonNode root = objectMapper.readTree(trimmed);
+          JsonNode responseNode = root.get("response");
+          if (responseNode != null && !responseNode.isNull()) {
+            String responseText = responseNode.asText();
+            if (!responseText.isBlank()) {
+              return responseText;
+            }
+          }
+          log.warn("Ollama JSON response missing 'response' field, returning raw body");
+          return body;
+        } catch (Exception ex) {
+          log.warn("Failed to parse Ollama JSON response, returning raw body", ex);
+          return body;
+        }
+      }
+
+      return body;
     } catch (RestClientException ex) {
       log.error("Ollama request failed", ex);
       throw new IllegalStateException("Ollama request failed", ex);
