@@ -1,14 +1,19 @@
 package com.ri.orchestrator.service;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.ri.orchestrator.dto.OllamaGenerateRequest;
+import com.ri.orchestrator.dto.OllamaGenerateResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 @Component
 public class OllamaClient {
+  private static final Logger log = LoggerFactory.getLogger(OllamaClient.class);
+
   private final RestTemplate restTemplate;
   private final String baseUrl;
   private final String model;
@@ -21,24 +26,27 @@ public class OllamaClient {
     this.model = model;
   }
 
-  public String generateResponse(String prompt) {
-    Map<String, Object> body = new HashMap<>();
-    body.put("model", model);
-    body.put("prompt", prompt);
-    body.put("stream", false);
+  public String generate(String prompt) {
+    OllamaGenerateRequest request = new OllamaGenerateRequest(model, prompt, false);
 
     try {
-      @SuppressWarnings("unchecked")
-      Map<String, Object> response = restTemplate.postForObject(
-          baseUrl + "/api/generate", body, Map.class);
+      ResponseEntity<OllamaGenerateResponse> response = restTemplate.postForEntity(
+          baseUrl + "/api/generate", request, OllamaGenerateResponse.class);
 
-      if (response == null || !response.containsKey("response")) {
+      if (!response.getStatusCode().is2xxSuccessful()) {
+        log.error("Ollama returned non-2xx status: {}", response.getStatusCode());
+        throw new IllegalStateException("Ollama returned non-2xx status");
+      }
+
+      OllamaGenerateResponse body = response.getBody();
+      if (body == null || body.getResponse() == null || body.getResponse().isBlank()) {
+        log.error("Ollama response missing 'response' field");
         throw new IllegalStateException("Ollama response missing 'response' field");
       }
 
-      Object raw = response.get("response");
-      return raw == null ? null : raw.toString();
+      return body.getResponse();
     } catch (RestClientException ex) {
+      log.error("Ollama request failed", ex);
       throw new IllegalStateException("Ollama request failed", ex);
     }
   }
