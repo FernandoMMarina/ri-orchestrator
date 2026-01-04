@@ -1,11 +1,11 @@
 package com.ri.orchestrator.controller;
 
 import com.ri.orchestrator.dto.AssistantRequest;
-import com.ri.orchestrator.dto.AssistantResponse;
 import com.ri.orchestrator.service.AssistantService;
 import jakarta.validation.Valid;
 import java.util.Map;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,9 +23,9 @@ public class AssistantController {
 
   @PostMapping(path = "/assistant", consumes = MediaType.APPLICATION_JSON_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE)
-  public AssistantResponse assistant(@Valid @RequestBody AssistantRequest request) {
-    String reply = assistantService.handleMessage(request.getMessage());
-    return new AssistantResponse(reply);
+  public ResponseEntity<String> assistant(@Valid @RequestBody AssistantRequest request) {
+    String json = assistantService.handleMessage(request.getMessage());
+    return ResponseEntity.ok(json);
   }
 
   @GetMapping(path = "/health", produces = MediaType.APPLICATION_JSON_VALUE)
