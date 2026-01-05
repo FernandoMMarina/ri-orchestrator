@@ -1,0 +1,18 @@
+server:
+  port: 8080
+
+ollama:
+  base-url: http://localhost:11434
+  model: llama3:latest
+
+services:
+  jobs:
+    base-url: http://localhost:8081
+  aws:
+    base-url: https://api.example.com
+    token: INTERNAL_ASSISTANT_TOKEN
+
+spring:
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
