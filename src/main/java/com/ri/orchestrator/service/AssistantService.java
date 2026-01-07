@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ri.orchestrator.dto.AssistantResponse;
 import com.ri.orchestrator.model.ConversationSession;
 import com.ri.orchestrator.model.ConversationState;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,8 +58,13 @@ public class AssistantService {
           break;
         case CAPTURA_ITEMS:
           if (isDone(message)) {
-            changeState(session, ConversationState.RESUMEN);
-            replyText = buildSummary(session.getContext());
+            if (hasItems(session.getContext())) {
+              log.info("Session {} transition CAPTURA_ITEMS -> RESUMEN", session.getSessionId());
+              changeState(session, ConversationState.RESUMEN);
+              replyText = buildSummary(session.getContext());
+            } else {
+              replyText = buildAskItems();
+            }
           } else {
             addItem(session.getContext(), message);
             replyText = buildMoreItems();
@@ -132,7 +138,12 @@ public class AssistantService {
 
   private boolean isDone(String message) {
     String normalized = normalize(message);
-    return normalized.contains(DONE_KEYWORD) || normalized.contains("terminar");
+    return normalized.contains(DONE_KEYWORD)
+        || normalized.contains("terminar")
+        || normalized.contains("terminamos")
+        || normalized.contains("finalizar")
+        || normalized.contains("cerrar")
+        || normalized.contains("resumen");
   }
 
   private boolean isConfirmed(String message) {
@@ -146,7 +157,12 @@ public class AssistantService {
   }
 
   private String normalize(String message) {
-    return message == null ? "" : message.toLowerCase().trim();
+    if (message == null) {
+      return "";
+    }
+    String lower = message.toLowerCase().trim();
+    String normalized = Normalizer.normalize(lower, Normalizer.Form.NFD);
+    return normalized.replaceAll("\\p{M}", "");
   }
 
   private void addItem(Map<String, Object> context, String itemText) {
@@ -156,6 +172,14 @@ public class AssistantService {
     @SuppressWarnings("unchecked")
     List<String> items = (List<String>) context.computeIfAbsent("items", key -> new ArrayList<String>());
     items.add(itemText.trim());
+  }
+
+  private boolean hasItems(Map<String, Object> context) {
+    Object items = context == null ? null : context.get("items");
+    if (!(items instanceof List<?>)) {
+      return false;
+    }
+    return !((List<?>) items).isEmpty();
   }
 
   private String buildAskClient() {
