@@ -57,7 +57,8 @@ public class AssistantService {
           }
           break;
         case CAPTURA_ITEMS:
-          if (isDone(message)) {
+          IntentType intent = classifyItemIntent(message);
+          if (intent == IntentType.FINISH_ITEMS) {
             if (hasItems(session.getContext())) {
               log.info("Session {} transition CAPTURA_ITEMS -> RESUMEN", session.getSessionId());
               changeState(session, ConversationState.RESUMEN);
@@ -71,17 +72,11 @@ public class AssistantService {
           }
           break;
         case RESUMEN:
-          changeState(session, ConversationState.CONFIRMACION);
-          replyText = buildConfirmation(session.getContext());
-          break;
         case CONFIRMACION:
           if (isConfirmed(message)) {
             changeState(session, ConversationState.SUCCESS);
             replyText = buildSuccess();
             endSession = true;
-          } else if (isRejected(message)) {
-            changeState(session, ConversationState.CAPTURA_ITEMS);
-            replyText = buildAskItems();
           } else {
             replyText = buildConfirmation(session.getContext());
           }
@@ -136,19 +131,20 @@ public class AssistantService {
     return message != null && !message.isBlank();
   }
 
-  private boolean isDone(String message) {
+  private IntentType classifyItemIntent(String message) {
     String normalized = normalize(message);
-    return normalized.contains(DONE_KEYWORD)
-        || normalized.contains("terminar")
-        || normalized.contains("terminamos")
-        || normalized.contains("finalizar")
-        || normalized.contains("cerrar")
-        || normalized.contains("resumen");
+    if (normalized.isBlank()) {
+      return IntentType.ADD_ITEM;
+    }
+    if (containsFinishKeyword(normalized)) {
+      return IntentType.FINISH_ITEMS;
+    }
+    return IntentType.ADD_ITEM;
   }
 
   private boolean isConfirmed(String message) {
     String normalized = normalize(message);
-    return normalized.contains(CONFIRMATION_KEYWORD);
+    return normalized.contains("confirmo") || normalized.contains(CONFIRMATION_KEYWORD);
   }
 
   private boolean isRejected(String message) {
@@ -182,6 +178,16 @@ public class AssistantService {
     return !((List<?>) items).isEmpty();
   }
 
+  private boolean containsFinishKeyword(String normalized) {
+    return normalized.contains(DONE_KEYWORD)
+        || normalized.contains("terminar")
+        || normalized.contains("terminamos")
+        || normalized.contains("finalizar")
+        || normalized.contains("cerrar")
+        || normalized.contains("resumen")
+        || normalized.contains("confirmar");
+  }
+
   private String buildAskClient() {
     return renderWithOllama(
         "Redacta una pregunta breve para pedir el cliente de una cotizacion. Responde solo la pregunta.",
@@ -206,8 +212,8 @@ public class AssistantService {
   private String buildSummary(Map<String, Object> context) {
     String summaryPayload = serializeContext(context);
     return renderWithOllama(
-        "Redacta un resumen breve para confirmacion basado en: " + summaryPayload,
-        "Resumen de la solicitud: " + summaryPayload
+        "Redacta un resumen breve con pedido de confirmacion basado en: " + summaryPayload,
+        "Resumen de la solicitud: " + summaryPayload + ". ¿Confirmás esta acción? Respondé: CONFIRMAR"
     );
   }
 
@@ -250,5 +256,10 @@ public class AssistantService {
     } catch (JsonProcessingException ex) {
       return safeContext.toString();
     }
+  }
+
+  private enum IntentType {
+    ADD_ITEM,
+    FINISH_ITEMS
   }
 }
