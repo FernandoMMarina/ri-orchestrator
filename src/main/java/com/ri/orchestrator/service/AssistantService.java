@@ -92,10 +92,14 @@ public class AssistantService {
           } else {
             log.info("Searching AWS users by name: '{}'", clienteNombre);
             List<Map<String, Object>> matches = awsBackendClient.searchUsersByName(clienteNombre);
-            log.info("AWS user search results: {} match(es)", matches.size());
-            if (matches.isEmpty()) {
+            if (matches == null) {
+              log.info("AWS user search results: unavailable");
+              replyText = buildAskClienteExistenteUnavailable();
+            } else if (matches.isEmpty()) {
+              log.info("AWS user search results: 0 match(es)");
               replyText = buildAskClienteExistenteNotFound();
             } else if (matches.size() == 1) {
+              log.info("AWS user search results: 1 match(es)");
               Map<String, Object> cliente = matches.get(0);
               String clienteId = resolveClienteId(cliente);
               if (clienteId == null) {
@@ -107,6 +111,7 @@ public class AssistantService {
                 replyText = buildAskSucursal();
               }
             } else {
+              log.info("AWS user search results: {} match(es)", matches.size());
               session.getContext().put(CONTEXT_CLIENTE_MATCHES, new ArrayList<>(matches));
               changeState(session, ConversationState.CAPTURA_CLIENTE_EXISTENTE_CONFIRMACION);
               replyText = buildAskClienteExistenteMultiple(matches);
@@ -722,6 +727,10 @@ public class AssistantService {
 
   private String buildAskClienteExistenteNotFound() {
     return "No encontré un cliente con ese nombre. ¿Querés intentar con otro?";
+  }
+
+  private String buildAskClienteExistenteUnavailable() {
+    return "Ahora mismo no puedo validar clientes existentes. ¿Querés intentar más tarde o cargar el cliente manualmente?";
   }
 
   private String buildAskClienteExistenteResolutionError() {

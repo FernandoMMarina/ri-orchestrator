@@ -46,6 +46,8 @@ public class AwsBackendClient {
       return response == null ? Collections.emptyList() : response;
     } catch (HttpClientErrorException.NotFound ex) {
       return Collections.emptyList();
+    } catch (HttpClientErrorException.Forbidden ex) {
+      return null;
     } catch (RestClientException ex) {
       throw new IllegalStateException("AWS backend request failed", ex);
     }
