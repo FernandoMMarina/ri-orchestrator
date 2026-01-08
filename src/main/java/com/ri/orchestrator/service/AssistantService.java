@@ -90,7 +90,9 @@ public class AssistantService {
           if (clienteNombre.isBlank()) {
             replyText = buildAskClienteExistenteInvalid();
           } else {
+            log.info("Searching AWS users by name: '{}'", clienteNombre);
             List<Map<String, Object>> matches = awsBackendClient.searchUsersByName(clienteNombre);
+            log.info("AWS user search results: {} match(es)", matches.size());
             if (matches.isEmpty()) {
               replyText = buildAskClienteExistenteNotFound();
             } else if (matches.size() == 1) {
