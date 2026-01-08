@@ -5,6 +5,8 @@ public class AssistantResponse {
   private String state;
   private String reply_text;
   private boolean end_session;
+  private String next_action;
+  private Boolean awaiting_confirmation;
 
   public AssistantResponse() {}
 
@@ -45,5 +47,21 @@ public class AssistantResponse {
 
   public void setEnd_session(boolean end_session) {
     this.end_session = end_session;
+  }
+
+  public String getNext_action() {
+    return next_action;
+  }
+
+  public void setNext_action(String next_action) {
+    this.next_action = next_action;
+  }
+
+  public Boolean getAwaiting_confirmation() {
+    return awaiting_confirmation;
+  }
+
+  public void setAwaiting_confirmation(Boolean awaiting_confirmation) {
+    this.awaiting_confirmation = awaiting_confirmation;
   }
 }

@@ -1,7 +1,5 @@
 package com.ri.orchestrator.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ri.orchestrator.dto.AssistantResponse;
 import com.ri.orchestrator.model.ConversationSession;
 import com.ri.orchestrator.model.ConversationState;
@@ -29,7 +27,6 @@ public class AssistantService {
   private static final String CONTEXT_SUCURSAL_ID = "sucursalId";
   private static final String CONTEXT_UBICACION_DIRECCION = "ubicacionDireccion";
   private static final String CONTEXT_NOMBRE_TRABAJO = "nombreTrabajo";
-  private static final String CONTEXT_DESCRIPCION_TRABAJO = "descripcionTrabajo";
   private static final String CONTEXT_MANO_OBRA = "manoDeObra";
   private static final String CONTEXT_MATERIALES = "materiales";
   private static final String CONTEXT_EQUIPOS = "equipos";
@@ -48,14 +45,11 @@ public class AssistantService {
 
   private final OllamaClient ollamaClient;
   private final SessionStore sessionStore;
-  private final ObjectMapper objectMapper;
 
   public AssistantService(OllamaClient ollamaClient,
-                          SessionStore sessionStore,
-                          ObjectMapper objectMapper) {
+                          SessionStore sessionStore) {
     this.ollamaClient = ollamaClient;
     this.sessionStore = sessionStore;
-    this.objectMapper = objectMapper;
   }
 
   public AssistantResponse handleMessage(String sessionId, String message) {
@@ -63,14 +57,12 @@ public class AssistantService {
     ConversationSession session = sessionStore.getOrCreate(resolvedSessionId);
     String replyText = "";
     boolean endSession = false;
-    ConversationState responseState = session.getState();
 
     try {
       switch (session.getState()) {
         case START:
           changeState(session, ConversationState.CAPTURA_TIPO_CLIENTE);
           replyText = buildAskTipoCliente();
-          responseState = session.getState();
           break;
         case CAPTURA_TIPO_CLIENTE:
           ClientType clientType = classifyClientType(message);
@@ -85,7 +77,6 @@ public class AssistantService {
             changeState(session, ConversationState.CAPTURA_CLIENTE_MANUAL);
             replyText = buildAskClienteManual();
           }
-          responseState = session.getState();
           break;
         case CAPTURA_CLIENTE_EXISTENTE:
           String clienteId = parseObjectId(message);
@@ -96,7 +87,6 @@ public class AssistantService {
             changeState(session, ConversationState.CAPTURA_SUCURSAL);
             replyText = buildAskSucursal();
           }
-          responseState = session.getState();
           break;
         case CAPTURA_CLIENTE_MANUAL:
           String clienteManualNombre = sanitizeText(message);
@@ -109,7 +99,6 @@ public class AssistantService {
             changeState(session, ConversationState.CAPTURA_DIRECCION_MANUAL);
             replyText = buildAskDireccionManual();
           }
-          responseState = session.getState();
           break;
         case CAPTURA_SUCURSAL:
           String sucursalId = parseObjectId(message);
@@ -120,7 +109,6 @@ public class AssistantService {
             changeState(session, ConversationState.CAPTURA_TRABAJO);
             replyText = buildAskTrabajo();
           }
-          responseState = session.getState();
           break;
         case CAPTURA_DIRECCION_MANUAL:
           String direccionManual = sanitizeText(message);
@@ -131,7 +119,6 @@ public class AssistantService {
             changeState(session, ConversationState.CAPTURA_TRABAJO);
             replyText = buildAskTrabajo();
           }
-          responseState = session.getState();
           break;
         case CAPTURA_TRABAJO:
           String trabajo = resolveTrabajo(message);
@@ -142,7 +129,6 @@ public class AssistantService {
             changeState(session, ConversationState.CAPTURA_MANO_OBRA);
             replyText = buildAskManoObra();
           }
-          responseState = session.getState();
           break;
         case CAPTURA_MANO_OBRA:
           if (Boolean.TRUE.equals(session.getContext().get(CONTEXT_MO_CONFIRM_ZERO))) {
@@ -156,7 +142,6 @@ public class AssistantService {
             } else {
               replyText = buildConfirmManoObraZero();
             }
-            responseState = session.getState();
             break;
           }
 
@@ -173,7 +158,6 @@ public class AssistantService {
               replyText = buildAskMaterialesConfirm();
             }
           }
-          responseState = session.getState();
           break;
         case CAPTURA_MATERIALES_CONFIRM:
           if (isYes(message)) {
@@ -186,7 +170,6 @@ public class AssistantService {
           } else {
             replyText = buildAskMaterialesConfirm();
           }
-          responseState = session.getState();
           break;
         case CAPTURA_MATERIALES:
           replyText = handleAdditionalItems(
@@ -199,7 +182,6 @@ public class AssistantService {
               this::buildAskMaterialesItemInvalid,
               this::buildAskMaterialesMore
           );
-          responseState = session.getState();
           break;
         case CAPTURA_EQUIPOS_CONFIRM:
           if (isYes(message)) {
@@ -212,7 +194,6 @@ public class AssistantService {
           } else {
             replyText = buildAskEquiposConfirm();
           }
-          responseState = session.getState();
           break;
         case CAPTURA_EQUIPOS:
           replyText = handleAdditionalItems(
@@ -225,7 +206,6 @@ public class AssistantService {
               this::buildAskEquiposItemInvalid,
               this::buildAskEquiposMore
           );
-          responseState = session.getState();
           break;
         case CAPTURA_EXTRAS_CONFIRM:
           if (isYes(message)) {
@@ -233,23 +213,17 @@ public class AssistantService {
             changeState(session, ConversationState.CAPTURA_EXTRAS);
             replyText = buildAskExtrasItem();
           } else if (isNo(message)) {
-            SummaryResponse summary = buildSummaryResponse(session);
-            replyText = summary.replyText;
-            responseState = summary.responseState;
+            replyText = buildSummaryAndMoveToConfirmation(session);
           } else {
             replyText = buildAskExtrasConfirm();
-            responseState = session.getState();
           }
           break;
         case CAPTURA_EXTRAS:
           if (isFinish(message)) {
             if (hasItems(session.getContext(), CONTEXT_EXTRAS)) {
-              SummaryResponse summary = buildSummaryResponse(session);
-              replyText = summary.replyText;
-              responseState = summary.responseState;
+              replyText = buildSummaryAndMoveToConfirmation(session);
             } else {
               replyText = buildAskExtrasItem();
-              responseState = session.getState();
             }
           } else {
             ParsedItem item = parseDescriptionAndAmount(message);
@@ -259,35 +233,28 @@ public class AssistantService {
               addAdditionalItem(session.getContext(), CONTEXT_EXTRAS, item);
               replyText = buildAskExtrasMore();
             }
-            responseState = session.getState();
           }
           break;
         case RESUMEN:
-          SummaryResponse summary = buildSummaryResponse(session);
-          replyText = summary.replyText;
-          responseState = summary.responseState;
+          replyText = buildSummaryAndMoveToConfirmation(session);
           break;
         case CONFIRMACION:
-          if (isConfirmed(message)) {
+          if (isConfirmed(message) || isSimpleYes(message)) {
             changeState(session, ConversationState.SUCCESS);
             replyText = buildSuccess();
             endSession = true;
-            responseState = session.getState();
           } else {
             replyText = buildConfirmationPrompt();
-            responseState = session.getState();
           }
           break;
         case SUCCESS:
           replyText = buildSuccess();
           endSession = true;
-          responseState = session.getState();
           break;
         case ERROR:
         default:
           replyText = buildError();
           endSession = true;
-          responseState = session.getState();
           break;
       }
     } catch (Exception ex) {
@@ -295,7 +262,6 @@ public class AssistantService {
       changeState(session, ConversationState.ERROR);
       replyText = buildError();
       endSession = true;
-      responseState = session.getState();
     }
 
     if (endSession) {
@@ -304,12 +270,17 @@ public class AssistantService {
       sessionStore.update(session);
     }
 
-    return new AssistantResponse(
+    AssistantResponse response = new AssistantResponse(
         session.getSessionId(),
-        responseState.name(),
+        session.getState().name(),
         replyText,
         endSession
     );
+    if (session.getState() == ConversationState.CONFIRMACION) {
+      response.setAwaiting_confirmation(true);
+      response.setNext_action("await_confirmation");
+    }
+    return response;
   }
 
   private String resolveSessionId(String sessionId) {
@@ -480,8 +451,15 @@ public class AssistantService {
   private boolean isConfirmed(String message) {
     String normalized = normalize(message);
     return normalized.contains("confirmo")
-        || normalized.contains("confirmar")
-        || normalized.contains("confirmo");
+        || normalized.contains("confirmar");
+  }
+
+  private boolean isSimpleYes(String message) {
+    String normalized = normalize(message);
+    return normalized.equals("si")
+        || normalized.equals("sí")
+        || normalized.startsWith("si ")
+        || normalized.startsWith("sí ");
   }
 
   private String normalize(String message) {
@@ -497,7 +475,7 @@ public class AssistantService {
     return message == null ? "" : message.trim();
   }
 
-  private SummaryResponse buildSummaryResponse(ConversationSession session) {
+  private String buildSummaryAndMoveToConfirmation(ConversationSession session) {
     Map<String, Object> context = session.getContext();
     context.put(CONTEXT_APROBADO, false);
     context.put(CONTEXT_ESTADO, "pendiente");
@@ -506,19 +484,14 @@ public class AssistantService {
     context.put("totalCost", totalCost);
     context.put("totalIva", totalIva);
 
-    String summaryPayload = serializeContext(context);
+    String summaryPayload = buildSummaryPayload(context, totalCost, totalIva);
     String replyText = renderWithOllama(
-        "Redacta un resumen breve que incluya cliente, trabajo, mano de obra, totales e IVA. "
-            + "Cerrá pidiendo confirmacion explicita. Contexto: " + summaryPayload,
-        "Resumen de la cotización: " + summaryPayload
-            + ". Total sin IVA: " + formatMoney(totalCost)
-            + ". Total con IVA: " + formatMoney(totalIva)
-            + ". ¿Confirmás esta acción? Respondé: CONFIRMAR"
+        "Redacta un resumen breve con confirmacion explicita. Contexto: " + summaryPayload,
+        buildSummaryFallback(context, totalCost, totalIva)
     );
 
-    SummaryResponse response = new SummaryResponse(replyText, ConversationState.RESUMEN);
     changeState(session, ConversationState.CONFIRMACION);
-    return response;
+    return replyText;
   }
 
   private double calculateTotalCost(Map<String, Object> context) {
@@ -561,13 +534,41 @@ public class AssistantService {
     return String.format(Locale.ROOT, "%.2f", value);
   }
 
-  private String serializeContext(Map<String, Object> context) {
-    Map<String, Object> safeContext = context == null ? new HashMap<>() : context;
-    try {
-      return objectMapper.writeValueAsString(safeContext);
-    } catch (JsonProcessingException ex) {
-      return safeContext.toString();
+  private String buildSummaryPayload(Map<String, Object> context, double totalCost, double totalIva) {
+    String cliente = resolveClienteLabel(context);
+    String trabajo = String.valueOf(context.getOrDefault(CONTEXT_NOMBRE_TRABAJO, ""));
+    String manoDeObra = formatMoney(asDouble(context.get(CONTEXT_MANO_OBRA)));
+    String materiales = formatMoney(sumArray(context.get(CONTEXT_MATERIALES)));
+    String equipos = formatMoney(sumArray(context.get(CONTEXT_EQUIPOS)));
+    String extras = formatMoney(sumArray(context.get(CONTEXT_EXTRAS)));
+    return "Cliente: " + cliente
+        + ". Trabajo: " + trabajo
+        + ". Mano de obra: " + manoDeObra
+        + ". Materiales: " + materiales
+        + ". Equipos: " + equipos
+        + ". Extras: " + extras
+        + ". Total sin IVA: " + formatMoney(totalCost)
+        + ". Total con IVA: " + formatMoney(totalIva);
+  }
+
+  private String buildSummaryFallback(Map<String, Object> context, double totalCost, double totalIva) {
+    return "Resumen de la cotización. " + buildSummaryPayload(context, totalCost, totalIva)
+        + ". ¿Confirmás esta acción? Respondé: CONFIRMAR";
+  }
+
+  private String resolveClienteLabel(Map<String, Object> context) {
+    Object clienteId = context.get(CONTEXT_CLIENTE_ID);
+    if (clienteId != null) {
+      return "ID " + clienteId;
     }
+    Object manual = context.get(CONTEXT_CLIENTE_MANUAL);
+    if (manual instanceof Map<?, ?> manualMap) {
+      Object nombre = manualMap.get("nombre");
+      if (nombre != null && !String.valueOf(nombre).isBlank()) {
+        return String.valueOf(nombre);
+      }
+    }
+    return "No especificado";
   }
 
   private String buildAskTipoCliente() {
@@ -787,8 +788,6 @@ public class AssistantService {
   }
 
   private record ParsedItem(String descripcion, double monto) {}
-
-  private record SummaryResponse(String replyText, ConversationState responseState) {}
 
   private interface ResponseSupplier {
     String get();
