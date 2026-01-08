@@ -12,7 +12,7 @@ services:
 aws:
   backend:
     base-url: https://rosensteininstalaciones.com.ar/api
-    service-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJyaS1vcmNoZXN0cmF0b3IiLCJyb2xlIjoic2VydmljZSIsInNjb3BlcyI6WyJ1c2VyczpyZWFkIiwic3VjdXJzYWxzOnJlYWQiLCJtYWNoaW5lczpyZWFkIl0sImlhdCI6MTc2NzkxNDI3NiwiZXhwIjoxOTI1NzAyMjc2fQ.-pLTxVdcVqYndREVF38ViW5yaVHzXW1Evt_gr_C_1G0
+    service-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJyaS1vcmNoZXN0cmF0b3IiLCJyb2xlIjoic2VydmljZSIsInNjb3BlcyI6WyJ1c2VyczpyZWFkIiwic3VjdXJzYWxzOnJlYWQiLCJtYWNoaW5lczpyZWFkIl0sImlhdCI6MTc2Nzg5ODIwMiwiZXhwIjoxOTI1Njg2MjAyfQ.HV6nxjFTd1OVQCeUyNdKiWl4p85E3dKWQlAn9ghH9vo
 
 spring:
   jackson:
