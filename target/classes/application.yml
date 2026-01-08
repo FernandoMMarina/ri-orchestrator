@@ -8,9 +8,11 @@ ollama:
 services:
   jobs:
     base-url: http://localhost:8081
-  aws:
+
+aws:
+  backend:
     base-url: https://api.example.com
-    token: INTERNAL_ASSISTANT_TOKEN
+    service-token: INTERNAL_ASSISTANT_TOKEN
 
 spring:
   jackson:
