@@ -38,13 +38,13 @@ public class OllamaClient {
           baseUrl + "/api/generate", request, String.class);
 
       if (!response.getStatusCode().is2xxSuccessful()) {
-        log.error("Ollama returned non-2xx status: {}", response.getStatusCode());
+        log.warn("Ollama returned non-2xx status: {}", response.getStatusCode());
         throw new IllegalStateException("Ollama returned non-2xx status");
       }
 
       String body = response.getBody();
       if (body == null || body.isBlank()) {
-        log.error("Ollama response body is empty");
+        log.warn("Ollama response body is empty");
         throw new IllegalStateException("Ollama response body is empty");
       }
 
@@ -62,15 +62,15 @@ public class OllamaClient {
           log.warn("Ollama JSON response missing 'response' field, returning raw body");
           return body;
         } catch (Exception ex) {
-          log.warn("Failed to parse Ollama JSON response, returning raw body", ex);
+          log.warn("Failed to parse Ollama JSON response, returning raw body");
           return body;
         }
       }
 
       return body;
     } catch (RestClientException ex) {
-      log.error("Ollama request failed", ex);
-      throw new IllegalStateException("Ollama request failed", ex);
+      log.warn("Ollama request failed: {}", ex.getMessage());
+      throw new IllegalStateException("Ollama request failed");
     }
   }
 }

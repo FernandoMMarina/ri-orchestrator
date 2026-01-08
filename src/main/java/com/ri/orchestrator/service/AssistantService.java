@@ -726,7 +726,7 @@ public class AssistantService {
   }
 
   private String buildAskClienteExistenteNotFound() {
-    return "No encontré un cliente con ese nombre. ¿Querés intentar con otro?";
+    return "No encontré clientes con ese nombre. ¿Querés intentar de nuevo o cargar un cliente manual?";
   }
 
   private String buildAskClienteExistenteUnavailable() {

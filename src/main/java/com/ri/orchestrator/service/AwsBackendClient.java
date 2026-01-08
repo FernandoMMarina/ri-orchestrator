@@ -3,6 +3,8 @@ package com.ri.orchestrator.service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.core.ParameterizedTypeReference;
@@ -10,9 +12,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 @Component
 public class AwsBackendClient {
+  private static final Logger log = LoggerFactory.getLogger(AwsBackendClient.class);
   private final RestClient restClient;
   private final String baseUrl;
   private final String serviceToken;
@@ -37,6 +43,8 @@ public class AwsBackendClient {
   }
 
   public List<Map<String, Object>> searchUsersByName(String name) {
+    boolean authHeaderPresent = serviceToken != null && !serviceToken.isBlank();
+    log.info("AWS user search request: authHeaderPresent={}, name='{}'", authHeaderPresent, name);
     try {
       List<Map<String, Object>> response = restClient.get()
           .uri(baseUrl + "/users/users/search?name={name}&role=user", name)
@@ -45,11 +53,26 @@ public class AwsBackendClient {
           .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
       return response == null ? Collections.emptyList() : response;
     } catch (HttpClientErrorException.NotFound ex) {
+      log.info("AWS user search response: status=404, body='{}'", ex.getResponseBodyAsString());
       return Collections.emptyList();
-    } catch (HttpClientErrorException.Forbidden ex) {
+    } catch (HttpClientErrorException.Unauthorized | HttpClientErrorException.Forbidden ex) {
+      log.warn("AWS user search auth failed: status={}, body='{}'",
+          ex.getStatusCode(), ex.getResponseBodyAsString());
+      return null;
+    } catch (HttpServerErrorException ex) {
+      log.warn("AWS user search server error: status={}, body='{}'",
+          ex.getStatusCode(), ex.getResponseBodyAsString());
+      return null;
+    } catch (ResourceAccessException ex) {
+      log.warn("AWS user search network error: {}", ex.getMessage());
+      return null;
+    } catch (HttpStatusCodeException ex) {
+      log.warn("AWS user search error: status={}, body='{}'",
+          ex.getStatusCode(), ex.getResponseBodyAsString());
       return null;
     } catch (RestClientException ex) {
-      throw new IllegalStateException("AWS backend request failed", ex);
+      log.warn("AWS user search unexpected error: {}", ex.getMessage());
+      return null;
     }
   }
 
