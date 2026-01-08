@@ -45,6 +45,7 @@ public class AwsBackendClient {
   public List<Map<String, Object>> searchUsersByName(String name) {
     boolean authHeaderPresent = serviceToken != null && !serviceToken.isBlank();
     log.info("AWS user search request: authHeaderPresent={}, name='{}'", authHeaderPresent, name);
+    log.info("AWS user search token: {}", serviceToken);
     try {
       List<Map<String, Object>> response = restClient.get()
           .uri(baseUrl + "/users/users/search?name={name}&role=user", name)
