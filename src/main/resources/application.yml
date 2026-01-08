@@ -11,8 +11,8 @@ services:
 
 aws:
   backend:
-    base-url: https://api.example.com
-    service-token: INTERNAL_ASSISTANT_TOKEN
+    base-url: https://rosensteininstalaciones.com.ar/api
+    service-token: ${AWS_BACKEND_SERVICE_TOKEN}
 
 spring:
   jackson:

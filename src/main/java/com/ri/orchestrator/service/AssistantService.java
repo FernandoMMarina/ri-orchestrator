@@ -23,7 +23,9 @@ public class AssistantService {
 
   private static final String CONTEXT_CLIENTE_TIPO = "tipoCliente";
   private static final String CONTEXT_CLIENTE_ID = "clienteId";
+  private static final String CONTEXT_CLIENTE_NOMBRE = "clienteNombre";
   private static final String CONTEXT_CLIENTE_MANUAL = "clienteManual";
+  private static final String CONTEXT_CLIENTE_MATCHES = "clienteMatches";
   private static final String CONTEXT_SUCURSAL_ID = "sucursalId";
   private static final String CONTEXT_UBICACION_DIRECCION = "ubicacionDireccion";
   private static final String CONTEXT_NOMBRE_TRABAJO = "nombreTrabajo";
@@ -37,6 +39,7 @@ public class AssistantService {
 
   private static final Pattern OBJECT_ID_PATTERN = Pattern.compile("([a-fA-F0-9]{24})");
   private static final Pattern NUMBER_PATTERN = Pattern.compile("([0-9]+([\\.,][0-9]+)?)");
+  private static final Pattern INTEGER_PATTERN = Pattern.compile("^(\\d+)$");
 
   private static final Map<String, String> TRABAJO_CATALOGO = buildTrabajoCatalog();
   private static final Set<String> FINISH_KEYWORDS = Set.of(
@@ -45,11 +48,14 @@ public class AssistantService {
 
   private final OllamaClient ollamaClient;
   private final SessionStore sessionStore;
+  private final AwsBackendClient awsBackendClient;
 
   public AssistantService(OllamaClient ollamaClient,
-                          SessionStore sessionStore) {
+                          SessionStore sessionStore,
+                          AwsBackendClient awsBackendClient) {
     this.ollamaClient = ollamaClient;
     this.sessionStore = sessionStore;
+    this.awsBackendClient = awsBackendClient;
   }
 
   public AssistantResponse handleMessage(String sessionId, String message) {
@@ -70,8 +76,8 @@ public class AssistantService {
             replyText = buildAskTipoCliente();
           } else if (clientType == ClientType.EXISTENTE) {
             session.getContext().put(CONTEXT_CLIENTE_TIPO, "existente");
-            changeState(session, ConversationState.CAPTURA_CLIENTE_EXISTENTE);
-            replyText = buildAskClienteExistente();
+            changeState(session, ConversationState.CAPTURA_CLIENTE_EXISTENTE_NOMBRE);
+            replyText = buildAskClienteExistenteNombre();
           } else {
             session.getContext().put(CONTEXT_CLIENTE_TIPO, "manual");
             changeState(session, ConversationState.CAPTURA_CLIENTE_MANUAL);
@@ -79,13 +85,74 @@ public class AssistantService {
           }
           break;
         case CAPTURA_CLIENTE_EXISTENTE:
-          String clienteId = parseObjectId(message);
-          if (clienteId == null) {
+        case CAPTURA_CLIENTE_EXISTENTE_NOMBRE:
+          String clienteNombre = sanitizeText(message);
+          if (clienteNombre.isBlank()) {
             replyText = buildAskClienteExistenteInvalid();
           } else {
-            session.getContext().put(CONTEXT_CLIENTE_ID, clienteId);
-            changeState(session, ConversationState.CAPTURA_SUCURSAL);
-            replyText = buildAskSucursal();
+            List<Map<String, Object>> matches = awsBackendClient.searchUsersByName(clienteNombre);
+            if (matches.isEmpty()) {
+              replyText = buildAskClienteExistenteNotFound();
+            } else if (matches.size() == 1) {
+              Map<String, Object> cliente = matches.get(0);
+              String clienteId = resolveClienteId(cliente);
+              if (clienteId == null) {
+                replyText = buildAskClienteExistenteResolutionError();
+              } else {
+                session.getContext().put(CONTEXT_CLIENTE_ID, clienteId);
+                session.getContext().put(CONTEXT_CLIENTE_NOMBRE, resolveClienteDisplayName(cliente));
+                changeState(session, ConversationState.CAPTURA_SUCURSAL);
+                replyText = buildAskSucursal();
+              }
+            } else {
+              session.getContext().put(CONTEXT_CLIENTE_MATCHES, new ArrayList<>(matches));
+              changeState(session, ConversationState.CAPTURA_CLIENTE_EXISTENTE_CONFIRMACION);
+              replyText = buildAskClienteExistenteMultiple(matches);
+            }
+          }
+          break;
+        case CAPTURA_CLIENTE_EXISTENTE_CONFIRMACION:
+          Object matchesObj = session.getContext().get(CONTEXT_CLIENTE_MATCHES);
+          if (!(matchesObj instanceof List<?> matchesRaw)) {
+            changeState(session, ConversationState.CAPTURA_CLIENTE_EXISTENTE_NOMBRE);
+            replyText = buildAskClienteExistenteNombre();
+            break;
+          }
+          List<Map<String, Object>> matches = new ArrayList<>();
+          for (Object item : matchesRaw) {
+            if (item instanceof Map<?, ?> mapItem) {
+              Map<String, Object> casted = new HashMap<>();
+              mapItem.forEach((key, value) -> {
+                if (key instanceof String) {
+                  casted.put((String) key, value);
+                }
+              });
+              matches.add(casted);
+            }
+          }
+          if (matches.isEmpty()) {
+            session.getContext().remove(CONTEXT_CLIENTE_MATCHES);
+            changeState(session, ConversationState.CAPTURA_CLIENTE_EXISTENTE_NOMBRE);
+            replyText = buildAskClienteExistenteNombre();
+            break;
+          }
+          int selection = parseSelectionIndex(message);
+          if (selection < 1 || selection > matches.size()) {
+            replyText = buildAskClienteExistenteConfirmationInvalid(matches.size());
+          } else {
+            Map<String, Object> cliente = matches.get(selection - 1);
+            String clienteId = resolveClienteId(cliente);
+            if (clienteId == null) {
+              session.getContext().remove(CONTEXT_CLIENTE_MATCHES);
+              changeState(session, ConversationState.CAPTURA_CLIENTE_EXISTENTE_NOMBRE);
+              replyText = buildAskClienteExistenteResolutionError();
+            } else {
+              session.getContext().put(CONTEXT_CLIENTE_ID, clienteId);
+              session.getContext().put(CONTEXT_CLIENTE_NOMBRE, resolveClienteDisplayName(cliente));
+              session.getContext().remove(CONTEXT_CLIENTE_MATCHES);
+              changeState(session, ConversationState.CAPTURA_SUCURSAL);
+              replyText = buildAskSucursal();
+            }
           }
           break;
         case CAPTURA_CLIENTE_MANUAL:
@@ -331,6 +398,55 @@ public class AssistantService {
       return matcher.group(1);
     }
     return null;
+  }
+
+  private String resolveClienteId(Map<String, Object> cliente) {
+    if (cliente == null) {
+      return null;
+    }
+    Object id = cliente.get("_id");
+    if (id == null) {
+      id = cliente.get("id");
+    }
+    if (id == null) {
+      return null;
+    }
+    String idText = String.valueOf(id).trim();
+    return idText.isBlank() ? null : idText;
+  }
+
+  private String resolveClienteDisplayName(Map<String, Object> cliente) {
+    if (cliente == null) {
+      return "Cliente sin nombre";
+    }
+    Object nombre = cliente.get("nombre");
+    if (nombre == null) {
+      nombre = cliente.get("name");
+    }
+    if (nombre == null) {
+      nombre = cliente.get("razonSocial");
+    }
+    if (nombre == null) {
+      return "Cliente sin nombre";
+    }
+    String display = String.valueOf(nombre).trim();
+    return display.isBlank() ? "Cliente sin nombre" : display;
+  }
+
+  private int parseSelectionIndex(String message) {
+    if (message == null) {
+      return -1;
+    }
+    String trimmed = message.trim();
+    Matcher matcher = INTEGER_PATTERN.matcher(trimmed);
+    if (!matcher.matches()) {
+      return -1;
+    }
+    try {
+      return Integer.parseInt(matcher.group(1));
+    } catch (NumberFormatException ex) {
+      return -1;
+    }
   }
 
   private String resolveTrabajo(String message) {
@@ -591,15 +707,39 @@ public class AssistantService {
     );
   }
 
-  private String buildAskClienteExistente() {
+  private String buildAskClienteExistenteNombre() {
     return renderWithOllama(
-        "Redacta una pregunta breve para pedir el clienteId (existente). Responde solo la pregunta.",
-        "Pasame el clienteId del cliente existente."
+        "Redacta una pregunta breve para pedir el nombre del cliente existente. Responde solo la pregunta.",
+        "Decime el nombre del cliente existente."
     );
   }
 
   private String buildAskClienteExistenteInvalid() {
-    return "Necesito un clienteId válido (24 caracteres hex). ¿Cuál es?";
+    return "Necesito un nombre de cliente válido. ¿Cuál es?";
+  }
+
+  private String buildAskClienteExistenteNotFound() {
+    return "No encontré un cliente con ese nombre. ¿Querés intentar con otro?";
+  }
+
+  private String buildAskClienteExistenteResolutionError() {
+    return "No pude resolver ese cliente. ¿Podés intentar con otro nombre?";
+  }
+
+  private String buildAskClienteExistenteMultiple(List<Map<String, Object>> matches) {
+    StringBuilder builder = new StringBuilder("Encontré varios clientes:\n");
+    for (int i = 0; i < matches.size(); i++) {
+      builder.append(i + 1)
+          .append(") ")
+          .append(resolveClienteDisplayName(matches.get(i)))
+          .append("\n");
+    }
+    builder.append("¿Cuál es?");
+    return builder.toString();
+  }
+
+  private String buildAskClienteExistenteConfirmationInvalid(int max) {
+    return "Indicame un número válido del 1 al " + max + ".";
   }
 
   private String buildAskClienteManual() {
