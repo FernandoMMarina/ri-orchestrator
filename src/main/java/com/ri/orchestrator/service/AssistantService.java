@@ -298,16 +298,29 @@ public class AssistantService {
     }
   }
 
-  private ClientType classifyClientType(String message) {
-    String normalized = normalize(message);
-    if (normalized.contains("existente")) {
-      return ClientType.EXISTENTE;
-    }
-    if (normalized.contains("nuevo") || normalized.contains("manual")) {
-      return ClientType.MANUAL;
-    }
-    return ClientType.UNKNOWN;
+ private ClientType classifyClientType(String message) {
+  String normalized = normalize(message);
+
+  // 1️⃣ MANUAL tiene prioridad absoluta
+  if (normalized.contains("manual")
+      || normalized.contains("nuevo")
+      || normalized.contains("particular")
+      || normalized.contains("sin cliente")) {
+    return ClientType.MANUAL;
   }
+
+  // 2️⃣ EXISTENTE solo si lo dice explícitamente
+  if (normalized.contains("existente")) {
+    return ClientType.EXISTENTE;
+  }
+
+  // 3️⃣ EXISTENTE si parece un ObjectId
+  if (parseObjectId(normalized) != null) {
+    return ClientType.EXISTENTE;
+  }
+
+  return ClientType.UNKNOWN;
+}
 
   private String parseObjectId(String message) {
     if (message == null) {
