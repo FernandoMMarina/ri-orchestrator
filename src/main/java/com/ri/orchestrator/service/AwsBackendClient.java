@@ -39,7 +39,7 @@ public class AwsBackendClient {
   public List<Map<String, Object>> searchUsersByName(String name) {
     try {
       List<Map<String, Object>> response = restClient.get()
-          .uri(baseUrl + "/users/search?name={name}", name)
+          .uri(baseUrl + "/users/users/search?name={name}&role=user", name)
           .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
           .retrieve()
           .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
