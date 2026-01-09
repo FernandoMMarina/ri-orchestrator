@@ -27,6 +27,8 @@ public class AssistantService {
   private static final String CONTEXT_CLIENTE_MANUAL = "clienteManual";
   private static final String CONTEXT_CLIENTE_MATCHES = "clienteMatches";
   private static final String CONTEXT_SUCURSAL_ID = "sucursalId";
+  private static final String CONTEXT_SUCURSALES = "sucursales";
+  private static final String CONTEXT_SUCURSAL_NOMBRE = "sucursalNombre";
   private static final String CONTEXT_UBICACION_DIRECCION = "ubicacionDireccion";
   private static final String CONTEXT_NOMBRE_TRABAJO = "nombreTrabajo";
   private static final String CONTEXT_MANO_OBRA = "manoDeObra";
@@ -105,10 +107,8 @@ public class AssistantService {
               if (clienteId == null) {
                 replyText = buildAskClienteExistenteResolutionError();
               } else {
-                session.getContext().put(CONTEXT_CLIENTE_ID, clienteId);
-                session.getContext().put(CONTEXT_CLIENTE_NOMBRE, resolveClienteDisplayName(cliente));
                 changeState(session, ConversationState.CAPTURA_SUCURSAL);
-                replyText = buildAskSucursal();
+                replyText = prepareSucursalCapture(session, clienteId, resolveClienteDisplayName(cliente));
               }
             } else {
               log.info("AWS user search results: {} match(es)", matches.size());
@@ -154,11 +154,9 @@ public class AssistantService {
               changeState(session, ConversationState.CAPTURA_CLIENTE_EXISTENTE_NOMBRE);
               replyText = buildAskClienteExistenteResolutionError();
             } else {
-              session.getContext().put(CONTEXT_CLIENTE_ID, clienteId);
-              session.getContext().put(CONTEXT_CLIENTE_NOMBRE, resolveClienteDisplayName(cliente));
               session.getContext().remove(CONTEXT_CLIENTE_MATCHES);
               changeState(session, ConversationState.CAPTURA_SUCURSAL);
-              replyText = buildAskSucursal();
+              replyText = prepareSucursalCapture(session, clienteId, resolveClienteDisplayName(cliente));
             }
           }
           break;
@@ -175,11 +173,15 @@ public class AssistantService {
           }
           break;
         case CAPTURA_SUCURSAL:
-          String sucursalId = parseObjectId(message);
+          List<Map<String, Object>> sucursales = castToListOfMaps(
+              session.getContext().get(CONTEXT_SUCURSALES));
+          Map<String, Object> sucursalSeleccionada = resolveSucursalSelection(message, sucursales);
+          String sucursalId = resolveSucursalId(sucursalSeleccionada);
           if (sucursalId == null) {
-            replyText = buildAskSucursalInvalid();
+            replyText = buildAskSucursalInvalid(sucursales);
           } else {
             session.getContext().put(CONTEXT_SUCURSAL_ID, sucursalId);
+            session.getContext().put(CONTEXT_SUCURSAL_NOMBRE, resolveSucursalNombre(sucursalSeleccionada));
             changeState(session, ConversationState.CAPTURA_TRABAJO);
             replyText = buildAskTrabajo();
           }
@@ -454,6 +456,105 @@ public class AssistantService {
     } catch (NumberFormatException ex) {
       return -1;
     }
+  }
+
+  private List<Map<String, Object>> castToListOfMaps(Object raw) {
+    if (!(raw instanceof List<?> rawList)) {
+      return List.of();
+    }
+    List<Map<String, Object>> result = new ArrayList<>();
+    for (Object item : rawList) {
+      if (item instanceof Map<?, ?> mapItem) {
+        Map<String, Object> casted = new HashMap<>();
+        mapItem.forEach((key, value) -> {
+          if (key instanceof String) {
+            casted.put((String) key, value);
+          }
+        });
+        result.add(casted);
+      }
+    }
+    return result;
+  }
+
+  private String prepareSucursalCapture(ConversationSession session, String clienteId, String clienteNombre) {
+    session.getContext().put(CONTEXT_CLIENTE_ID, clienteId);
+    session.getContext().put(CONTEXT_CLIENTE_NOMBRE, clienteNombre);
+    List<Map<String, Object>> sucursales = loadSucursalesForCliente(clienteId);
+    if (!sucursales.isEmpty()) {
+      session.getContext().put(CONTEXT_SUCURSALES, sucursales);
+    } else {
+      session.getContext().remove(CONTEXT_SUCURSALES);
+    }
+    return buildAskSucursal(sucursales);
+  }
+
+  private List<Map<String, Object>> loadSucursalesForCliente(String clienteId) {
+    try {
+      Map<String, Object> cliente = awsBackendClient.getUserById(clienteId);
+      if (cliente == null || cliente.isEmpty()) {
+        return List.of();
+      }
+      return castToListOfMaps(cliente.get("sucursales"));
+    } catch (Exception ex) {
+      log.warn("AWS sucursales lookup failed: {}", ex.getMessage());
+      return List.of();
+    }
+  }
+
+  private Map<String, Object> resolveSucursalSelection(String message, List<Map<String, Object>> sucursales) {
+    if (sucursales == null || sucursales.isEmpty()) {
+      return null;
+    }
+    int selection = parseSelectionIndex(message);
+    if (selection >= 1 && selection <= sucursales.size()) {
+      return sucursales.get(selection - 1);
+    }
+    String normalizedInput = normalize(message);
+    if (normalizedInput.isBlank()) {
+      return null;
+    }
+    for (Map<String, Object> sucursal : sucursales) {
+      String nombre = resolveSucursalNombre(sucursal);
+      if (nombre.isBlank()) {
+        continue;
+      }
+      String normalizedNombre = normalize(nombre);
+      if (normalizedNombre.contains(normalizedInput) || normalizedInput.contains(normalizedNombre)) {
+        return sucursal;
+      }
+    }
+    return null;
+  }
+
+  private String resolveSucursalId(Map<String, Object> sucursal) {
+    if (sucursal == null) {
+      return null;
+    }
+    Object id = sucursal.get("_id");
+    if (id == null) {
+      id = sucursal.get("id");
+    }
+    if (id == null) {
+      return null;
+    }
+    String value = String.valueOf(id).trim();
+    return value.isBlank() ? null : value;
+  }
+
+  private String resolveSucursalNombre(Map<String, Object> sucursal) {
+    if (sucursal == null) {
+      return "";
+    }
+    Object nombre = sucursal.get("nombre");
+    if (nombre == null) {
+      nombre = sucursal.get("name");
+    }
+    if (nombre == null) {
+      return "";
+    }
+    String value = String.valueOf(nombre).trim();
+    return value.isBlank() ? "" : value;
   }
 
   private String resolveTrabajo(String message) {
@@ -760,15 +861,36 @@ public class AssistantService {
     );
   }
 
-  private String buildAskSucursal() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir la sucursalId del cliente. Responde solo la pregunta.",
-        "Pasame la sucursalId del cliente."
-    );
+  private String buildAskSucursal(List<Map<String, Object>> sucursales) {
+    if (sucursales == null || sucursales.isEmpty()) {
+      return "No pude obtener sucursales para este cliente. ¿Querés intentar más tarde?";
+    }
+    StringBuilder builder = new StringBuilder("Sucursales disponibles:\n");
+    for (int i = 0; i < sucursales.size(); i++) {
+      String nombre = resolveSucursalNombre(sucursales.get(i));
+      if (nombre.isBlank()) {
+        nombre = "Sucursal " + (i + 1);
+      }
+      builder.append(i + 1).append(") ").append(nombre).append("\n");
+    }
+    builder.append("¿Cuál es la sucursal? Respondé con el nombre.");
+    return builder.toString();
   }
 
-  private String buildAskSucursalInvalid() {
-    return "Necesito una sucursalId válida (24 caracteres hex). ¿Cuál es?";
+  private String buildAskSucursalInvalid(List<Map<String, Object>> sucursales) {
+    if (sucursales == null || sucursales.isEmpty()) {
+      return "No tengo sucursales disponibles para este cliente. ¿Querés intentar más tarde?";
+    }
+    StringBuilder builder = new StringBuilder("No encontré esa sucursal. Opciones:\n");
+    for (int i = 0; i < sucursales.size(); i++) {
+      String nombre = resolveSucursalNombre(sucursales.get(i));
+      if (nombre.isBlank()) {
+        nombre = "Sucursal " + (i + 1);
+      }
+      builder.append(i + 1).append(") ").append(nombre).append("\n");
+    }
+    builder.append("Respondé con el nombre exacto.");
+    return builder.toString();
   }
 
   private String buildAskDireccionManual() {
