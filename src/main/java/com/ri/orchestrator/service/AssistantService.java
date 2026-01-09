@@ -905,9 +905,11 @@ public class AssistantService {
   }
 
   private String buildAskTrabajo() {
-    return renderWithOllama(
+    String fallback = "¿Cuál es el tipo de trabajo? Opciones: " + String.join(", ", TRABAJO_CATALOGO.values());
+    return renderWithOllamaValidated(
         "Redacta una pregunta breve para elegir el tipo de trabajo. Inclui las opciones.",
-        "¿Cuál es el tipo de trabajo? Opciones: " + String.join(", ", TRABAJO_CATALOGO.values())
+        fallback,
+        this::containsTrabajoOption
     );
   }
 
@@ -1032,6 +1034,38 @@ public class AssistantService {
       log.warn("Ollama unavailable, using fallback response");
       return fallback;
     }
+  }
+
+  private String renderWithOllamaValidated(String prompt, String fallback, java.util.function.Predicate<String> validator) {
+    try {
+      String response = ollamaClient.generate(prompt);
+      if (response == null || response.isBlank()) {
+        return fallback;
+      }
+      String trimmed = response.trim();
+      if (!validator.test(trimmed)) {
+        log.warn("Ollama response failed validation, using fallback");
+        return fallback;
+      }
+      return trimmed;
+    } catch (Exception ex) {
+      log.warn("Ollama unavailable, using fallback response");
+      return fallback;
+    }
+  }
+
+  private boolean containsTrabajoOption(String response) {
+    if (response == null || response.isBlank()) {
+      return false;
+    }
+    String normalized = normalize(response);
+    for (String option : TRABAJO_CATALOGO.values()) {
+      String normalizedOption = normalize(option);
+      if (normalized.contains(normalizedOption)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static Map<String, String> buildTrabajoCatalog() {
