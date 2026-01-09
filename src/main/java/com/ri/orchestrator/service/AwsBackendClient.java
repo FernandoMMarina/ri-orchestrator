@@ -39,7 +39,7 @@ public class AwsBackendClient {
   }
 
   public Map<String, Object> getSucursalById(String sucursalId) {
-    return getForObject("/sucursals/{id}", sucursalId);
+    return getForObject("/sucursales/{id}", sucursalId);
   }
 
   public List<Map<String, Object>> searchUsersByName(String name) {
@@ -48,7 +48,7 @@ public class AwsBackendClient {
     log.info("AWS user search token: {}", serviceToken);
     try {
       List<Map<String, Object>> response = restClient.get()
-          .uri(baseUrl + "/users/users/search?name={name}&role=user", name)
+          .uri(baseUrl + "/users/search?q={name}", name)
           .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
           .retrieve()
           .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
