@@ -813,21 +813,15 @@ public class AssistantService {
   }
 
   private String buildAskTipoCliente() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir si el cliente es existente o manual. Responde solo la pregunta.",
-        "¿El cliente es existente o manual?"
-    );
+    return "Selecciona el tipo de cliente: existente o manual.";
   }
 
   private String buildAskClienteExistenteNombre() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir el nombre del cliente existente. Responde solo la pregunta.",
-        "Decime el nombre del cliente existente."
-    );
+    return "Buscar Cliente: indicame el nombre del cliente existente.";
   }
 
   private String buildAskClienteExistenteInvalid() {
-    return "Necesito un nombre de cliente válido. ¿Cuál es?";
+    return "Necesito un nombre de cliente válido.";
   }
 
   private String buildAskClienteExistenteNotFound() {
@@ -835,7 +829,7 @@ public class AssistantService {
   }
 
   private String buildAskClienteExistenteUnavailable() {
-    return "Ahora mismo no puedo validar clientes existentes. ¿Querés intentar más tarde o cargar el cliente manualmente?";
+    return "No pude validar clientes existentes. ¿Querés intentar más tarde o cargar el cliente manualmente?";
   }
 
   private String buildAskClienteExistenteResolutionError() {
@@ -859,10 +853,7 @@ public class AssistantService {
   }
 
   private String buildAskClienteManual() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir el nombre del cliente manual. Responde solo la pregunta.",
-        "Indicame el nombre del cliente."
-    );
+    return "Indicame el nombre del cliente.";
   }
 
   private String buildAskSucursal(List<Map<String, Object>> sucursales) {
@@ -877,7 +868,7 @@ public class AssistantService {
       }
       builder.append(i + 1).append(") ").append(nombre).append("\n");
     }
-    builder.append("¿Cuál es la sucursal? Respondé con el nombre.");
+    builder.append("Seleccionar Sucursal: respondé con el nombre.");
     return builder.toString();
   }
 
@@ -893,15 +884,12 @@ public class AssistantService {
       }
       builder.append(i + 1).append(") ").append(nombre).append("\n");
     }
-    builder.append("Respondé con el nombre exacto.");
+    builder.append("Seleccionar Sucursal: respondé con el nombre exacto.");
     return builder.toString();
   }
 
   private String buildAskDireccionManual() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir la direccion de la ubicacion. Responde solo la pregunta.",
-        "Indicame la dirección completa de la ubicación."
-    );
+    return "Indicame la dirección completa de la ubicación.";
   }
 
   private String buildAskTrabajo() {
@@ -919,10 +907,7 @@ public class AssistantService {
   }
 
   private String buildAskManoObra() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir el monto de mano de obra. Responde solo la pregunta.",
-        "Indicame el monto de mano de obra."
-    );
+    return "Mano de Obra: indicame el monto.";
   }
 
   private String buildAskManoObraInvalid() {
@@ -934,89 +919,59 @@ public class AssistantService {
   }
 
   private String buildAskMaterialesConfirm() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para saber si hay materiales. Responde solo la pregunta.",
-        "¿Hay materiales para agregar?"
-    );
+    return "Habilitar Materiales: ¿querés agregar materiales? (sí/no)";
   }
 
   private String buildAskMaterialesItem() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir descripcion y monto de un material.",
-        "Indicame la descripción y el monto del material."
-    );
+    return "Descripción del Material y Monto (ej: Filtro 1500).";
   }
 
   private String buildAskMaterialesItemInvalid() {
-    return "Necesito descripción y monto numérico del material. Por ejemplo: 'Cable 2mm 1500'.";
+    return "Necesito descripción y monto numérico del material. Ej: Filtro 1500.";
   }
 
   private String buildAskMaterialesMore() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir si hay mas materiales o finalizar.",
-        "¿Querés agregar otro material o terminamos?"
-    );
+    return "¿Querés agregar otro material? (sí/no)";
   }
 
   private String buildAskEquiposConfirm() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para saber si hay equipos. Responde solo la pregunta.",
-        "¿Hay equipos para agregar?"
-    );
+    return "Habilitar Equipos: ¿querés agregar equipos? (sí/no)";
   }
 
   private String buildAskEquiposItem() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir descripcion y monto de un equipo.",
-        "Indicame la descripción y el monto del equipo."
-    );
+    return "Descripción del Equipo y Monto (ej: Bomba 2500).";
   }
 
   private String buildAskEquiposItemInvalid() {
-    return "Necesito descripción y monto numérico del equipo. Por ejemplo: 'Compresor 5000'.";
+    return "Necesito descripción y monto numérico del equipo. Ej: Bomba 2500.";
   }
 
   private String buildAskEquiposMore() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir si hay mas equipos o finalizar.",
-        "¿Querés agregar otro equipo o terminamos?"
-    );
+    return "¿Querés agregar otro equipo? (sí/no)";
   }
 
   private String buildAskExtrasConfirm() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para saber si hay extras. Responde solo la pregunta.",
-        "¿Hay extras para agregar?"
-    );
+    return "Habilitar Extra: ¿querés agregar extras? (sí/no)";
   }
 
   private String buildAskExtrasItem() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir descripcion y monto de un extra.",
-        "Indicame la descripción y el monto del extra."
-    );
+    return "Descripción del Extra y Monto (ej: Viaticos 3000).";
   }
 
   private String buildAskExtrasItemInvalid() {
-    return "Necesito descripción y monto numérico del extra. Por ejemplo: 'Viáticos 2000'.";
+    return "Necesito descripción y monto numérico del extra. Ej: Viaticos 3000.";
   }
 
   private String buildAskExtrasMore() {
-    return renderWithOllama(
-        "Redacta una pregunta breve para pedir si hay mas extras o finalizar.",
-        "¿Querés agregar otro extra o terminamos?"
-    );
+    return "¿Querés agregar otro extra? (sí/no)";
   }
 
   private String buildConfirmationPrompt() {
-    return "¿Confirmás esta acción? Respondé: CONFIRMAR";
+    return "¿Confirmás esta cotización? Respondé: CONFIRMAR";
   }
 
   private String buildSuccess() {
-    return renderWithOllama(
-        "Redacta una confirmacion breve de que la cotizacion quedó creada.",
-        "Listo, la cotización quedó creada."
-    );
+    return "Listo, la cotización quedó creada.";
   }
 
   private String buildError() {
