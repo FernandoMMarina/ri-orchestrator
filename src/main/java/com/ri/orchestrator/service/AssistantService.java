@@ -108,6 +108,7 @@ public class AssistantService {
                 replyText = buildAskClienteExistenteResolutionError();
               } else {
                 log.info("AWS cliente seleccionado: id={}, nombre={}", clienteId, resolveClienteDisplayName(cliente));
+                log.info("AWS cliente payload: {}", cliente);
                 changeState(session, ConversationState.CAPTURA_SUCURSAL);
                 replyText = prepareSucursalCapture(session, clienteId, resolveClienteDisplayName(cliente));
               }
@@ -156,6 +157,7 @@ public class AssistantService {
               replyText = buildAskClienteExistenteResolutionError();
             } else {
               log.info("AWS cliente seleccionado: id={}, nombre={}", clienteId, resolveClienteDisplayName(cliente));
+              log.info("AWS cliente payload: {}", cliente);
               session.getContext().remove(CONTEXT_CLIENTE_MATCHES);
               changeState(session, ConversationState.CAPTURA_SUCURSAL);
               replyText = prepareSucursalCapture(session, clienteId, resolveClienteDisplayName(cliente));
