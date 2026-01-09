@@ -42,6 +42,23 @@ public class AwsBackendClient {
     return getForObject("/sucursales/{id}", sucursalId);
   }
 
+  public Map<String, Object> createCotizacion(Map<String, Object> payload) {
+    try {
+      return restClient.post()
+          .uri(baseUrl + "/cotizaciones")
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+          .body(payload)
+          .retrieve()
+          .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+    } catch (HttpStatusCodeException ex) {
+      log.warn("AWS cotizacion create error: status={}, body='{}'",
+          ex.getStatusCode(), ex.getResponseBodyAsString());
+      throw ex;
+    } catch (RestClientException ex) {
+      throw new IllegalStateException("AWS backend request failed", ex);
+    }
+  }
+
   public List<Map<String, Object>> searchUsersByName(String name) {
     boolean authHeaderPresent = serviceToken != null && !serviceToken.isBlank();
     log.info("AWS user search request: authHeaderPresent={}, name='{}'", authHeaderPresent, name);

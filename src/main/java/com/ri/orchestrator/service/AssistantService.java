@@ -320,6 +320,8 @@ public class AssistantService {
           break;
         case CONFIRMACION:
           if (isConfirmed(message) || isSimpleYes(message)) {
+            Map<String, Object> payload = buildCotizacionPayload(session.getContext());
+            awsBackendClient.createCotizacion(payload);
             changeState(session, ConversationState.SUCCESS);
             replyText = buildSuccess();
             endSession = true;
@@ -725,11 +727,7 @@ public class AssistantService {
     context.put("totalCost", totalCost);
     context.put("totalIva", totalIva);
 
-    String summaryPayload = buildSummaryPayload(context, totalCost, totalIva);
-    String replyText = renderWithOllama(
-        "Redacta un resumen breve con confirmacion explicita. Contexto: " + summaryPayload,
-        buildSummaryFallback(context, totalCost, totalIva)
-    );
+    String replyText = buildSummaryFallback(context, totalCost, totalIva);
 
     changeState(session, ConversationState.CONFIRMACION);
     return replyText;
@@ -777,12 +775,14 @@ public class AssistantService {
 
   private String buildSummaryPayload(Map<String, Object> context, double totalCost, double totalIva) {
     String cliente = resolveClienteLabel(context);
+    String sucursal = resolveSucursalLabel(context);
     String trabajo = String.valueOf(context.getOrDefault(CONTEXT_NOMBRE_TRABAJO, ""));
     String manoDeObra = formatMoney(asDouble(context.get(CONTEXT_MANO_OBRA)));
     String materiales = formatMoney(sumArray(context.get(CONTEXT_MATERIALES)));
     String equipos = formatMoney(sumArray(context.get(CONTEXT_EQUIPOS)));
     String extras = formatMoney(sumArray(context.get(CONTEXT_EXTRAS)));
     return "Cliente: " + cliente
+        + ". Sucursal: " + sucursal
         + ". Trabajo: " + trabajo
         + ". Mano de obra: " + manoDeObra
         + ". Materiales: " + materiales
@@ -810,6 +810,39 @@ public class AssistantService {
       }
     }
     return "No especificado";
+  }
+
+  private String resolveSucursalLabel(Map<String, Object> context) {
+    Object nombre = context.get(CONTEXT_SUCURSAL_NOMBRE);
+    if (nombre != null && !String.valueOf(nombre).isBlank()) {
+      return String.valueOf(nombre);
+    }
+    Object id = context.get(CONTEXT_SUCURSAL_ID);
+    if (id != null) {
+      return "ID " + id;
+    }
+    return "No especificada";
+  }
+
+  private Map<String, Object> buildCotizacionPayload(Map<String, Object> context) {
+    Map<String, Object> payload = new HashMap<>();
+    Object clienteId = context.get(CONTEXT_CLIENTE_ID);
+    Object clienteManual = context.get(CONTEXT_CLIENTE_MANUAL);
+    Object sucursalId = context.get(CONTEXT_SUCURSAL_ID);
+
+    payload.put("clienteId", clienteId);
+    payload.put("clienteManual", clienteManual);
+    payload.put("sucursalId", sucursalId);
+    payload.put("nombreTrabajo", context.get(CONTEXT_NOMBRE_TRABAJO));
+    payload.put("descripcionTrabajo", context.getOrDefault("descripcionTrabajo", ""));
+    payload.put("manoDeObra", asDouble(context.get(CONTEXT_MANO_OBRA)));
+    payload.put("materiales", context.getOrDefault(CONTEXT_MATERIALES, List.of()));
+    payload.put("equipos", context.getOrDefault(CONTEXT_EQUIPOS, List.of()));
+    payload.put("extras", context.getOrDefault(CONTEXT_EXTRAS, List.of()));
+    payload.put("totalCost", asDouble(context.get("totalCost")));
+    payload.put("totalIva", asDouble(context.get("totalIva")));
+    payload.put("aprobado", false);
+    return payload;
   }
 
   private String buildAskTipoCliente() {
