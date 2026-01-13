@@ -12,7 +12,13 @@ services:
 aws:
   backend:
     base-url: https://rosensteininstalaciones.com.ar/api
-    service-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJyaS1vcmNoZXN0cmF0b3IiLCJyb2xlIjoic2VydmljZSIsInNjb3BlcyI6WyJ1c2VyczpyZWFkIiwic3VjdXJzYWxzOnJlYWQiLCJtYWNoaW5lczpyZWFkIl0sImlhdCI6MTc2Nzk4MjE1OCwiZXhwIjoxOTI1NzcwMTU4fQ.BmuRlhWXKwGEomDtTEq1aRThEXFdD92OJQIQD1BmRIo
+    service-token: ${AWS_BACKEND_SERVICE_TOKEN:}
+    service-secret: ${AWS_BACKEND_SERVICE_SECRET:}
+    service-issuer: ${AWS_BACKEND_SERVICE_ISSUER:https://node-bff.local}
+    service-audience: ${AWS_BACKEND_SERVICE_AUDIENCE:jobs-service}
+    service-subject: ${AWS_BACKEND_SERVICE_SUBJECT:ri-orchestrator}
+    service-roles: ${AWS_BACKEND_SERVICE_ROLES:service}
+    service-ttl-seconds: ${AWS_BACKEND_SERVICE_TTL_SECONDS:3600}
 
 spring:
   jackson:

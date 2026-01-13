@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.ri.orchestrator.security.ServiceTokenProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.core.ParameterizedTypeReference;
@@ -22,16 +23,16 @@ public class AwsBackendClient {
   private final RestClient restClient;
   private final String baseUrl;
   private final String serviceToken;
+  private final ServiceTokenProvider tokenProvider;
 
   public AwsBackendClient(RestClient restClient,
                           @Value("${aws.backend.base-url}") String baseUrl,
-                          @Value("${aws.backend.service-token}") String serviceToken) {
-    if (serviceToken == null || serviceToken.isBlank()) {
-      throw new IllegalStateException("Missing aws.backend.service-token");
-    }
+                          @Value("${aws.backend.service-token:}") String serviceToken,
+                          ServiceTokenProvider tokenProvider) {
     this.restClient = restClient;
     this.baseUrl = baseUrl;
-    this.serviceToken = serviceToken;
+    this.serviceToken = serviceToken != null && !serviceToken.isBlank() ? serviceToken : null;
+    this.tokenProvider = tokenProvider;
   }
 
   public Map<String, Object> getUserById(String userId) {
@@ -46,7 +47,7 @@ public class AwsBackendClient {
     try {
       return restClient.post()
           .uri(baseUrl + "/cotizaciones")
-          .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
           .body(payload)
           .retrieve()
           .body(new ParameterizedTypeReference<Map<String, Object>>() {});
@@ -60,13 +61,12 @@ public class AwsBackendClient {
   }
 
   public List<Map<String, Object>> searchUsersByName(String name) {
-    boolean authHeaderPresent = serviceToken != null && !serviceToken.isBlank();
+    boolean authHeaderPresent = token() != null && !token().isBlank();
     log.info("AWS user search request: authHeaderPresent={}, name='{}'", authHeaderPresent, name);
-    log.info("AWS user search token: {}", serviceToken);
     try {
       List<Map<String, Object>> response = restClient.get()
           .uri(baseUrl + "/users/search?q={name}", name)
-          .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
           .retrieve()
           .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
       return response == null ? Collections.emptyList() : response;
@@ -98,7 +98,7 @@ public class AwsBackendClient {
     try {
       return restClient.get()
           .uri(baseUrl + path, id)
-          .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
           .retrieve()
           .body(new ParameterizedTypeReference<Map<String, Object>>() {});
     } catch (HttpClientErrorException.NotFound ex) {
@@ -106,5 +106,12 @@ public class AwsBackendClient {
     } catch (RestClientException ex) {
       throw new IllegalStateException("AWS backend request failed", ex);
     }
+  }
+
+  private String token() {
+    if (serviceToken != null) {
+      return serviceToken;
+    }
+    return tokenProvider.getToken();
   }
 }
