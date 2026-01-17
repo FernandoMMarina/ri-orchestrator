@@ -844,11 +844,11 @@ public class AssistantService {
   }
 
   private String buildGreeting() {
-    return humanize("Saluda de forma amigable y pregunta en qué puedes ayudar hoy.");
+    return humanize("Saluda de forma amigable como asistente de una empresa de instalaciones y mantenimiento.");
   }
 
   private String buildAskTipoCliente() {
-    return humanize("Pregunta si el cliente ya existe en el sistema o si es uno nuevo para cargar manualmente.");
+    return humanize("Pregunta si quiere crear una cotización para un cliente existente o uno nuevo.");
   }
 
   private String buildAskClienteExistenteNombre() {
@@ -1014,7 +1014,9 @@ public class AssistantService {
   }
 
   private String humanize(String instruction) {
-    String prompt = "Tu rol: Asistente virtual de construcción (útil, breve y profesional). Parafrasea esta instrucción del sistema para el usuario: "
+    String prompt = "Tu rol: Asistente virtual de una empresa de instalaciones y mantenimiento (aire acondicionado, calderas, electricidad, etc.). "
+        +
+        "Sé útil, breve y profesional. Parafrasea esta instrucción del sistema para el usuario: "
         + instruction;
     return renderWithOllama(prompt, instruction);
   }
