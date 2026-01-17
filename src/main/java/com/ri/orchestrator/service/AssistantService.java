@@ -1,6 +1,7 @@
 package com.ri.orchestrator.service;
 
 import com.ri.orchestrator.dto.AssistantResponse;
+import com.ri.orchestrator.dto.ParsedFinancialItem;
 import com.ri.orchestrator.model.ConversationSession;
 import com.ri.orchestrator.model.ConversationState;
 import java.text.Normalizer;
@@ -45,16 +46,21 @@ public class AssistantService {
 
   private static final Map<String, String> TRABAJO_CATALOGO = buildTrabajoCatalog();
   private static final Set<String> FINISH_KEYWORDS = Set.of(
-      "terminar", "terminamos", "finalizar", "cerrar", "listo", "resumen"
-  );
+      "terminar", "terminamos", "finalizar", "cerrar", "listo", "resumen");
 
+  private final IntentService intentService;
+  private final SmartParserService smartParserService;
   private final OllamaClient ollamaClient;
   private final SessionStore sessionStore;
   private final AwsBackendClient awsBackendClient;
 
-  public AssistantService(OllamaClient ollamaClient,
-                          SessionStore sessionStore,
-                          AwsBackendClient awsBackendClient) {
+  public AssistantService(IntentService intentService,
+      SmartParserService smartParserService,
+      OllamaClient ollamaClient,
+      SessionStore sessionStore,
+      AwsBackendClient awsBackendClient) {
+    this.intentService = intentService;
+    this.smartParserService = smartParserService;
     this.ollamaClient = ollamaClient;
     this.sessionStore = sessionStore;
     this.awsBackendClient = awsBackendClient;
@@ -260,8 +266,7 @@ public class AssistantService {
               this::buildAskEquiposConfirm,
               this::buildAskMaterialesItem,
               this::buildAskMaterialesItemInvalid,
-              this::buildAskMaterialesMore
-          );
+              this::buildAskMaterialesMore);
           break;
         case CAPTURA_EQUIPOS_CONFIRM:
           if (isYes(message)) {
@@ -284,8 +289,7 @@ public class AssistantService {
               this::buildAskExtrasConfirm,
               this::buildAskEquiposItem,
               this::buildAskEquiposItemInvalid,
-              this::buildAskEquiposMore
-          );
+              this::buildAskEquiposMore);
           break;
         case CAPTURA_EXTRAS_CONFIRM:
           if (isYes(message)) {
@@ -356,8 +360,7 @@ public class AssistantService {
         session.getSessionId(),
         session.getState().name(),
         replyText,
-        endSession
-    );
+        endSession);
     if (session.getState() == ConversationState.CONFIRMACION) {
       response.setAwaiting_confirmation(true);
       response.setNext_action("await_confirmation");
@@ -380,29 +383,23 @@ public class AssistantService {
     }
   }
 
- private ClientType classifyClientType(String message) {
-  String normalized = normalize(message);
+  private ClientType classifyClientType(String message) {
+    // 1️⃣ Si parece un ObjectId, es EXISTENTE (prioridad técnica)
+    if (parseObjectId(message) != null) {
+      return ClientType.EXISTENTE;
+    }
 
-  // 1️⃣ MANUAL tiene prioridad absoluta
-  if (normalized.contains("manual")
-      || normalized.contains("nuevo")
-      || normalized.contains("particular")
-      || normalized.contains("sin cliente")) {
-    return ClientType.MANUAL;
+    // 2️⃣ Usar IA para entender la intención (prioridad natural)
+    String intent = intentService.classifyClientType(message);
+    if ("MANUAL".equals(intent)) {
+      return ClientType.MANUAL;
+    }
+    if ("EXISTENTE".equals(intent)) {
+      return ClientType.EXISTENTE;
+    }
+
+    return ClientType.UNKNOWN;
   }
-
-  // 2️⃣ EXISTENTE solo si lo dice explícitamente
-  if (normalized.contains("existente")) {
-    return ClientType.EXISTENTE;
-  }
-
-  // 3️⃣ EXISTENTE si parece un ObjectId
-  if (parseObjectId(normalized) != null) {
-    return ClientType.EXISTENTE;
-  }
-
-  return ClientType.UNKNOWN;
-}
 
   private String parseObjectId(String message) {
     if (message == null) {
@@ -589,36 +586,21 @@ public class AssistantService {
   }
 
   private ParsedItem parseDescriptionAndAmount(String message) {
-    if (message == null) {
+    ParsedFinancialItem item = smartParserService.parseFinancialItem(message);
+    if (item == null) {
       return null;
     }
-    Matcher matcher = NUMBER_PATTERN.matcher(message);
-    String lastMatch = null;
-    while (matcher.find()) {
-      lastMatch = matcher.group(1);
-    }
-    if (lastMatch == null) {
-      return null;
-    }
-    Double amount = parseAmount(lastMatch);
-    if (amount == null || amount < 0) {
-      return null;
-    }
-    String description = message.replace(lastMatch, "").trim();
-    if (description.isBlank()) {
-      return null;
-    }
-    return new ParsedItem(description, amount);
+    return new ParsedItem(item.description(), item.amount());
   }
 
   private String handleAdditionalItems(ConversationSession session,
-                                       String message,
-                                       String contextKey,
-                                       ConversationState nextState,
-                                       ResponseSupplier nextPrompt,
-                                       ResponseSupplier askPrompt,
-                                       ResponseSupplier invalidPrompt,
-                                       ResponseSupplier morePrompt) {
+      String message,
+      String contextKey,
+      ConversationState nextState,
+      ResponseSupplier nextPrompt,
+      ResponseSupplier askPrompt,
+      ResponseSupplier invalidPrompt,
+      ResponseSupplier morePrompt) {
     if (isFinish(message)) {
       if (hasItems(session.getContext(), contextKey)) {
         changeState(session, nextState);
@@ -930,8 +912,7 @@ public class AssistantService {
     return renderWithOllamaValidated(
         "Redacta una pregunta breve para elegir el tipo de trabajo. Inclui las opciones.",
         fallback,
-        this::containsTrabajoOption
-    );
+        this::containsTrabajoOption);
   }
 
   private String buildAskTrabajoInvalid() {
@@ -940,7 +921,7 @@ public class AssistantService {
   }
 
   private String buildAskManoObra() {
-    return "Mano de Obra: indicame el monto.";
+    return humanize("Preguntá cuál es el costo de mano de obra.");
   }
 
   private String buildAskManoObraInvalid() {
@@ -952,11 +933,11 @@ public class AssistantService {
   }
 
   private String buildAskMaterialesConfirm() {
-    return "Habilitar Materiales: ¿querés agregar materiales? (sí/no)";
+    return humanize("Preguntá si quiere agregar materiales a la cotización.");
   }
 
   private String buildAskMaterialesItem() {
-    return "Descripción del Material y Monto (ej: Filtro 1500).";
+    return humanize("Pedí la descripción y el costo del material (ej: Filtro 1500).");
   }
 
   private String buildAskMaterialesItemInvalid() {
@@ -964,15 +945,15 @@ public class AssistantService {
   }
 
   private String buildAskMaterialesMore() {
-    return "¿Querés agregar otro material? (sí/no)";
+    return humanize("Preguntá si quiere agregar otro material más.");
   }
 
   private String buildAskEquiposConfirm() {
-    return "Habilitar Equipos: ¿querés agregar equipos? (sí/no)";
+    return humanize("Preguntá si quiere agregar equipos a la cotización.");
   }
 
   private String buildAskEquiposItem() {
-    return "Descripción del Equipo y Monto (ej: Bomba 2500).";
+    return humanize("Pedí la descripción y el costo del equipo (ej: Bomba 2500).");
   }
 
   private String buildAskEquiposItemInvalid() {
@@ -980,15 +961,15 @@ public class AssistantService {
   }
 
   private String buildAskEquiposMore() {
-    return "¿Querés agregar otro equipo? (sí/no)";
+    return humanize("Preguntá si quiere agregar otro equipo más.");
   }
 
   private String buildAskExtrasConfirm() {
-    return "Habilitar Extra: ¿querés agregar extras? (sí/no)";
+    return humanize("Preguntá si quiere agregar extras a la cotización.");
   }
 
   private String buildAskExtrasItem() {
-    return "Descripción del Extra y Monto (ej: Viaticos 3000).";
+    return humanize("Pedí la descripción y el costo del extra (ej: Viaticos 3000).");
   }
 
   private String buildAskExtrasItemInvalid() {
@@ -996,19 +977,25 @@ public class AssistantService {
   }
 
   private String buildAskExtrasMore() {
-    return "¿Querés agregar otro extra? (sí/no)";
+    return humanize("Preguntá si quiere agregar otro extra más.");
   }
 
   private String buildConfirmationPrompt() {
-    return "¿Confirmás esta cotización? Respondé: CONFIRMAR";
+    return humanize("Pedí confirmación final para crear la cotización. Debe responder CONFIRMAR.");
   }
 
   private String buildSuccess() {
-    return "Listo, la cotización quedó creada.";
+    return humanize("Confirmá que la cotización fue creada exitosamente.");
   }
 
   private String buildError() {
     return "Ocurrió un error. Intentá nuevamente.";
+  }
+
+  private String humanize(String instruction) {
+    String prompt = "Tu rol: Asistente virtual de construcción (útil, breve y profesional). Parafrasea esta instrucción del sistema para el usuario: "
+        + instruction;
+    return renderWithOllama(prompt, instruction);
   }
 
   private String renderWithOllama(String prompt, String fallback) {
@@ -1024,7 +1011,8 @@ public class AssistantService {
     }
   }
 
-  private String renderWithOllamaValidated(String prompt, String fallback, java.util.function.Predicate<String> validator) {
+  private String renderWithOllamaValidated(String prompt, String fallback,
+      java.util.function.Predicate<String> validator) {
     try {
       String response = ollamaClient.generate(prompt);
       if (response == null || response.isBlank()) {
@@ -1075,8 +1063,7 @@ public class AssistantService {
         "Cabina de Pintura",
         "Neumatica",
         "Obra",
-        "Chargebox"
-    );
+        "Chargebox");
     for (String option : options) {
       String normalized = normalizeStatic(option);
       catalog.put(normalized, option);
@@ -1099,7 +1086,8 @@ public class AssistantService {
     UNKNOWN
   }
 
-  private record ParsedItem(String descripcion, double monto) {}
+  private record ParsedItem(String descripcion, double monto) {
+  }
 
   private interface ResponseSupplier {
     String get();
