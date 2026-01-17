@@ -98,8 +98,10 @@ public class AssistantService {
           if (clienteNombre.isBlank()) {
             replyText = buildAskClienteExistenteInvalid();
           } else {
-            log.info("Searching AWS users by name: '{}'", clienteNombre);
-            List<Map<String, Object>> matches = awsBackendClient.searchUsersByName(clienteNombre);
+            // Extraer nombre usando IA si la frase es conversacional
+            String extractedName = intentService.extractName(clienteNombre);
+            log.info("Searching AWS users by name: '{}' (extracted from: '{}')", extractedName, clienteNombre);
+            List<Map<String, Object>> matches = awsBackendClient.searchUsersByName(extractedName);
             if (matches == null) {
               log.info("AWS user search results: unavailable");
               replyText = buildAskClienteExistenteUnavailable();

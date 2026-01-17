@@ -96,4 +96,31 @@ public class IntentService {
             return null;
         }
     }
+
+    public String extractName(String message) {
+        String prompt = """
+                El usuario dijo: "%s"
+
+                Extrae ÚNICAMENTE el nombre de la persona o empresa mencionado. Si dice "creo que se llama vicente", responde solo "vicente".
+                Si no hay un nombre claro, responde "DESCONOCIDO".
+
+                Responde SOLO con el nombre extraído, sin explicaciones adicionales.
+                """
+                .formatted(message);
+
+        try {
+            String response = ollamaClient.generate(prompt);
+            if (response == null)
+                return message;
+
+            String cleaned = response.trim();
+            if (cleaned.equalsIgnoreCase("DESCONOCIDO") || cleaned.isBlank()) {
+                return message;
+            }
+            return cleaned;
+        } catch (Exception e) {
+            log.error("Error extracting name with AI", e);
+            return message;
+        }
+    }
 }
