@@ -76,7 +76,7 @@ public class AssistantService {
       switch (session.getState()) {
         case START:
           changeState(session, ConversationState.CAPTURA_TIPO_CLIENTE);
-          replyText = buildAskTipoCliente();
+          replyText = buildGreeting() + " " + buildAskTipoCliente();
           break;
         case CAPTURA_TIPO_CLIENTE:
           ClientType clientType = classifyClientType(message);
@@ -843,8 +843,12 @@ public class AssistantService {
     return payload;
   }
 
+  private String buildGreeting() {
+    return humanize("Saluda de forma amigable y pregunta en qué puedes ayudar hoy.");
+  }
+
   private String buildAskTipoCliente() {
-    return "Selecciona el tipo de cliente: existente o manual.";
+    return humanize("Pregunta si el cliente ya existe en el sistema o si es uno nuevo para cargar manualmente.");
   }
 
   private String buildAskClienteExistenteNombre() {

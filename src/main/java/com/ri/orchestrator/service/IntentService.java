@@ -99,13 +99,14 @@ public class IntentService {
 
     public String extractName(String message) {
         String prompt = """
-                El usuario dijo: "%s"
+                Extrae SOLO el nombre de la persona del siguiente texto: "%s"
 
-                Extrae ÚNICAMENTE el nombre de la persona o empresa mencionado. Si dice "creo que se llama vicente", responde solo "vicente".
-                Si no hay un nombre claro, responde "DESCONOCIDO".
+                Reglas:
+                - Responde ÚNICAMENTE con el nombre, sin explicaciones
+                - Si dice "creo que es vicente", responde solo: vicente
+                - Una sola línea, sin puntuación adicional
 
-                Responde SOLO con el nombre extraído, sin explicaciones adicionales.
-                """
+                Nombre:"""
                 .formatted(message);
 
         try {
@@ -113,7 +114,12 @@ public class IntentService {
             if (response == null)
                 return message;
 
-            String cleaned = response.trim();
+            // Tomar solo la primera línea y limpiar
+            String cleaned = response.trim().split("\\n")[0].trim();
+
+            // Remover puntuación al final
+            cleaned = cleaned.replaceAll("[.!?;,]+$", "");
+
             if (cleaned.equalsIgnoreCase("DESCONOCIDO") || cleaned.isBlank()) {
                 return message;
             }
