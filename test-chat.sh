@@ -33,11 +33,14 @@ while true; do
     -H "Content-Type: application/json" \
     -d "{\"sessionId\":\"$SESSION_ID\",\"message\":\"$ESCAPED_MESSAGE\"}")
   
-  # Extraer el mensaje de respuesta (usando jq si está disponible, sino grep)
+  # Extraer el mensaje de respuesta (campo correcto: reply_text)
   if command -v jq &> /dev/null; then
-    ASSISTANT_REPLY=$(echo "$RESPONSE" | jq -r '.message')
+    ASSISTANT_REPLY=$(echo "$RESPONSE" | jq -r '.reply_text // "ERROR: No hay respuesta"')
   else
-    ASSISTANT_REPLY=$(echo "$RESPONSE" | grep -o '"message":"[^"]*"' | sed 's/"message":"//;s/"$//')
+    ASSISTANT_REPLY=$(echo "$RESPONSE" | grep -o '"reply_text":"[^"]*"' | sed 's/"reply_text":"//;s/"$//')
+    if [ -z "$ASSISTANT_REPLY" ]; then
+      ASSISTANT_REPLY="ERROR: No se pudo extraer mensaje. Respuesta: $RESPONSE"
+    fi
   fi
   
   echo "🤖 Asistente: $ASSISTANT_REPLY"
