@@ -561,10 +561,18 @@ public class AssistantService {
   }
 
   private String resolveTrabajo(String message) {
-    String normalized = normalize(message);
-    if (normalized.isBlank()) {
+    if (message == null || message.isBlank()) {
       return null;
     }
+
+    // Intentar con IA primero
+    String aiResult = intentService.normalizeWorkType(message, TRABAJO_CATALOGO.values());
+    if (aiResult != null) {
+      return aiResult;
+    }
+
+    // Fallback a búsqueda exacta
+    String normalized = normalize(message);
     return TRABAJO_CATALOGO.get(normalized);
   }
 
@@ -652,6 +660,12 @@ public class AssistantService {
   }
 
   private boolean isYes(String message) {
+    // Intentar con IA primero
+    boolean aiResult = intentService.isAffirmative(message);
+    if (aiResult)
+      return true;
+
+    // Fallback a lógica simple
     String normalized = normalize(message);
     return normalized.equals("si")
         || normalized.equals("sí")

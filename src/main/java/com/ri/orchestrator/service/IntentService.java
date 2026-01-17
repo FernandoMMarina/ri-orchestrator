@@ -45,4 +45,55 @@ public class IntentService {
             return "DESCONOCIDO";
         }
     }
+
+    public boolean isAffirmative(String message) {
+        String prompt = """
+                Analiza si el siguiente mensaje es una respuesta AFIRMATIVA (sí, dale, ok, confirmo, etc.) o NEGATIVA (no, nop, nada, etc.).
+
+                Mensaje: "%s"
+
+                Responde ÚNICAMENTE: AFIRMATIVO o NEGATIVO.
+                """
+                .formatted(message);
+
+        try {
+            String response = ollamaClient.generate(prompt);
+            if (response == null)
+                return false;
+            return response.trim().toUpperCase().contains("AFIRMATIVO");
+        } catch (Exception e) {
+            log.error("Error classifying affirmative with AI", e);
+            return false;
+        }
+    }
+
+    public String normalizeWorkType(String message, java.util.Collection<String> validOptions) {
+        String optionsList = String.join(", ", validOptions);
+        String prompt = """
+                El usuario dijo: "%s"
+
+                Opciones válidas: %s
+
+                ¿A cuál opción se refiere? Responde ÚNICAMENTE con el nombre EXACTO de la opción (copia y pega), o "DESCONOCIDO" si no coincide con ninguna.
+                """
+                .formatted(message, optionsList);
+
+        try {
+            String response = ollamaClient.generate(prompt);
+            if (response == null)
+                return null;
+
+            String cleaned = response.trim();
+            // Verificar si la respuesta está en las opciones válidas
+            for (String option : validOptions) {
+                if (option.equalsIgnoreCase(cleaned)) {
+                    return option;
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("Error normalizing work type with AI", e);
+            return null;
+        }
+    }
 }
