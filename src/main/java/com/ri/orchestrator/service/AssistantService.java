@@ -908,11 +908,11 @@ public class AssistantService {
   }
 
   private String buildAskTrabajo() {
-    String fallback = "¿Cuál es el tipo de trabajo? Opciones: " + String.join(", ", TRABAJO_CATALOGO.values());
-    return renderWithOllamaValidated(
-        "Redacta una pregunta breve para elegir el tipo de trabajo. Inclui las opciones.",
-        fallback,
-        this::containsTrabajoOption);
+    String opciones = String.join(", ", TRABAJO_CATALOGO.values());
+    String fallback = "¿Cuál es el tipo de trabajo? Opciones: " + opciones;
+    String prompt = "Redacta una pregunta breve y amigable para que el usuario elija el tipo de trabajo. " +
+        "DEBES incluir TODAS estas opciones en tu respuesta: " + opciones;
+    return renderWithOllamaValidated(prompt, fallback, this::containsTrabajoOption);
   }
 
   private String buildAskTrabajoInvalid() {
@@ -921,7 +921,7 @@ public class AssistantService {
   }
 
   private String buildAskManoObra() {
-    return humanize("Preguntá cuál es el costo de mano de obra.");
+    return humanize("Preguntá de forma amigable cuál es el monto de mano de obra para este trabajo.");
   }
 
   private String buildAskManoObraInvalid() {
@@ -933,11 +933,12 @@ public class AssistantService {
   }
 
   private String buildAskMaterialesConfirm() {
-    return humanize("Preguntá si quiere agregar materiales a la cotización.");
+    return humanize("Preguntá de forma casual si quiere agregar materiales a la cotización. Debe responder sí o no.");
   }
 
   private String buildAskMaterialesItem() {
-    return humanize("Pedí la descripción y el costo del material (ej: Filtro 1500).");
+    return humanize(
+        "Pedí la descripción y el monto del material de forma amigable. Incluí un ejemplo como 'Filtro 1500'.");
   }
 
   private String buildAskMaterialesItemInvalid() {
@@ -945,7 +946,7 @@ public class AssistantService {
   }
 
   private String buildAskMaterialesMore() {
-    return humanize("Preguntá si quiere agregar otro material más.");
+    return humanize("Preguntá de forma casual si quiere agregar otro material. Debe responder sí o no.");
   }
 
   private String buildAskEquiposConfirm() {
